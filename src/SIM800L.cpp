@@ -48,6 +48,8 @@ const char AT_CMD_CFUN_TEST[] PROGMEM = "AT+CFUN?";                           //
 const char AT_CMD_CFUN0[] PROGMEM = "AT+CFUN=0";                              // Switch minimum power mode
 const char AT_CMD_CFUN1[] PROGMEM = "AT+CFUN=1";                              // Switch normal power mode
 const char AT_CMD_CFUN4[] PROGMEM = "AT+CFUN=4";                              // Switch sleep power mode
+const char AT_CMD_CPOWD0[] PROGMEM = "AT+CPOWD=0";                            // Send a power off command URGENTLY
+const char AT_CMD_CPOWD1[] PROGMEM = "AT+CPOWD=1";                            // Send a power off command
 
 const char AT_CMD_CREG_TEST[] PROGMEM = "AT+CREG?";                           // Check the network registration status
 const char AT_CMD_SAPBR_GPRS[] PROGMEM = "AT+SAPBR=3,1,\"Contype\",\"GPRS\""; // Configure the GPRS bearer
@@ -80,14 +82,20 @@ const char AT_RSP_SAPBR[] PROGMEM = "+SAPBR: 1,1";                            //
  * Constructor; Init the driver, communication with the module and shared
  * buffer used by the driver (to avoid multiples allocation)
  */
-SIM800L::SIM800L(Stream* _stream, uint8_t _pinRst, uint16_t _internalBufferSize, uint16_t _recvBufferSize, Stream* _debugStream) {
+SIM800L::SIM800L(Stream* _stream, uint8_t _pinPowerOn, uint8_t _pinRst, uint16_t _internalBufferSize, uint16_t _recvBufferSize, Stream* _debugStream) {
   // Store local variables
   stream = _stream;
   enableDebug = _debugStream != NULL;
   debugStream = _debugStream;
+  pinPowerOn  = _pinPowerOn;
   pinReset = _pinRst;
 
-  if(pinReset != RESET_PIN_NOT_USED) {
+  if(pinPowerOn != PIN_NOT_USED) {
+    // Setup the power on pin
+    pinMode(pinPowerOn, OUTPUT);
+  }
+
+  if(pinReset != PIN_NOT_USED) {
     // Setup the reset pin and force a reset of the module
     pinMode(pinReset, OUTPUT);
     reset();
@@ -380,8 +388,7 @@ uint16_t SIM800L::initiateHTTP(const char* url, const char* headers) {
  * Force a reset of the module
  */
 void SIM800L::reset() {
-  if(pinReset != RESET_PIN_NOT_USED)
-  {
+  if(pinReset != PIN_NOT_USED) {
     // Some logging
     if(enableDebug) debugStream->println(F("SIM800L : Reset"));
 
@@ -402,6 +409,36 @@ void SIM800L::reset() {
   stream->flush();
   while (stream->available()) {
     stream->read();
+  }
+}
+
+void SIM800L::shutdownUrgent() {
+  // Send the command for power off with urgent status
+  sendCommand_P(AT_CMD_CPOWD0);
+}
+
+void SIM800L::shutdown() {
+  // Send the command for power off with normal status
+  sendCommand_P(AT_CMD_CPOWD1);
+}
+
+void SIM800L::powerOn() {
+  // Power on signal sequence - found on stackexchange - electronics
+  if(pinPowerOn != PIN_NOT_USED) {
+    // Some logging
+    if(enableDebug) debugStream->println(F("SIM800L : Powering on"));
+
+    digitalWrite(pinPowerOn, HIGH);
+    delay(1000);
+    digitalWrite(pinPowerOn, LOW);
+    delay(2000);
+    digitalWrite(pinPowerOn, HIGH);
+    delay(1000);
+    digitalWrite(pinPowerOn, LOW);
+  } else {
+    // Some logging
+    if(enableDebug) debugStream->println(F("SIM800L : Power on requested but power on pin undefined"));
+    if(enableDebug) debugStream->println(F("SIM800L : No power on"));
   }
 }
 
