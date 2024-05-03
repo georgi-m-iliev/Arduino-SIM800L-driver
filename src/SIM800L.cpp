@@ -93,6 +93,8 @@ SIM800L::SIM800L(Stream* _stream, uint8_t _pinPowerOn, uint8_t _pinRst, uint16_t
   if(pinPowerOn != PIN_NOT_USED) {
     // Setup the power on pin
     pinMode(pinPowerOn, OUTPUT);
+    // Set pin to High to prevent power on before sending the command
+    digitalWrite(pinPowerOn, HIGH);
   }
 
   if(pinReset != PIN_NOT_USED) {
